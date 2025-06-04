@@ -123,4 +123,5 @@ async def show_results():
     await game_channel.send(msg)
 
 # 봇 토큰 넣어서 실행
-bot.run(os.getenv("DISCORD_TOKEN"))
+token = os.getenv("DISCORD_TOKEN")
+bot.run(token)
