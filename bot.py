@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands, tasks
 import asyncio
 import os
+import random
 
 intents = discord.Intents.default()
 intents.members = True
@@ -121,6 +122,71 @@ async def show_results():
         msg += f"\n무승부입니다! 승자가 없습니다."
 
     await game_channel.send(msg)
+
+@bot.event
+async def on_message(message):
+    await bot.process_commands(message)  # 명령어 먼저 처리
+
+    if message.author.bot:
+        return
+
+    user_id = message.author.id
+    content = message.content.strip()
+
+    if user_id in pending_ai_game and pending_ai_game[user_id]:
+        # 유효한 선택인지 확인
+        synonyms = {
+            '가위': ['가위', '찌'],
+            '바위': ['바위', '묵'],
+            '보': ['보', '빠']
+        }
+
+        user_choice = None
+        for k, v in synonyms.items():
+            if content in v:
+                user_choice = k
+                break
+
+        if not user_choice:
+            await message.channel.send("가위 / 바위 / 보 (또는 묵찌빠) 중 하나만 골라주세요!")
+            return
+
+        # AI 선택
+        ai_choice = random.choice(['가위', '바위', '보'])
+
+        # 결과 판단
+        def winner(p1, p2):
+            win = {'가위': '보', '바위': '가위', '보': '바위'}
+            if p1 == p2:
+                return 0
+            elif win[p1] == p2:
+                return 1
+            else:
+                return 2
+
+        result = winner(user_choice, ai_choice)
+
+        if result == 0:
+            outcome = "비겼어요! 😐"
+        elif result == 1:
+            outcome = "이겼어요! 🎉"
+        else:
+            outcome = "졌어요... 😢"
+
+        await message.channel.send(
+            f"당신: {user_choice}\nAI: {ai_choice}\n\n**{outcome}**"
+        )
+
+        pending_ai_game.pop(user_id)  # 게임 상태 초기화
+
+pending_ai_game = {}  # 유저별 상태 저장: {user_id: True}
+
+@bot.command()
+async def ai가위바위보(ctx):
+    pending_ai_game[ctx.author.id] = True
+    await ctx.send(f"{ctx.author.mention} 가위 / 바위 / 보 중 하나를 채팅으로 입력하세요!")
+
+
 
 # 봇 토큰 넣어서 실행
 token = os.getenv("DISCORD_TOKEN")
