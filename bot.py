@@ -85,7 +85,7 @@ def determine_winner(p1_choice, p2_choice):
 async def show_results():
     # 참가자가 2명 이상일 때만 승패 계산
     if len(choices) < 2:
-        await game_channel.send("참가자가 2명 미만이라 게임을 할 수 없습니다. AI 모드로 1인에서 플레이하세요!")
+        await game_channel.send("참가자가 2명 미만이라 게임을 할 수 없습니다.")
         return
     
     user_ids = list(choices.keys())
@@ -123,69 +123,63 @@ async def show_results():
 
     await game_channel.send(msg)
 
-intents = discord.Intents.default()
-intents.message_content = True
+@bot.event
+async def on_message(message):
+    await bot.process_commands(message)  # 명령어 먼저 처리
 
-bot = commands.Bot(command_prefix='!', intents=intents)
-
-def determine_winner(p1_choice, p2_choice):
-    wins = {'가위': '보', '바위': '가위', '보': '바위'}
-    if p1_choice == p2_choice:
-        return 0
-    elif wins[p1_choice] == p2_choice:
-        return 1
-    else:
-        return 2
-
-@bot.command(name="ai가위바위보보")
-async def ai_rps(ctx):
-    await ctx.send(f"{ctx.author.mention} 가위 / 바위 / 보 중 하나를 채팅으로 입력하세요!(또는 묵찌빠빠)")
-
-    def check(m):
-        return (
-            m.author == ctx.author and
-            m.channel == ctx.channel and
-            m.content.strip() in ['가위', '바위', '보', '묵', '찌', '빠']
-        )
-
-    try:
-        user_msg = await bot.wait_for("message", timeout=15.0, check=check)
-    except asyncio.TimeoutError:
-        await ctx.send("시간 초과! 다음에 다시 도전해주세요.")
+    if message.author.bot:
         return
 
-    synonyms = {
-        '가위': ['가위', '찌'],
-        '바위': ['바위', '묵'],
-        '보': ['보', '빠']
-    }
+    user_id = message.author.id
+    content = message.content.strip()
 
-    user_raw_choice = user_msg.content.strip()
-    user_choice = None
-    user_display = None
+    if user_id in pending_ai_game and pending_ai_game[user_id]:
+        # 유효한 선택인지 확인
+        synonyms = {
+            '가위': ['가위', '찌'],
+            '바위': ['바위', '묵'],
+            '보': ['보', '빠']
+        }
 
-    for key, values in synonyms.items():
-        if user_raw_choice in values:
-            user_choice = key
-            if user_raw_choice != key:
-                user_display = f"{key}({user_raw_choice})"
+        user_choice = None
+        for k, v in synonyms.items():
+            if content in v:
+                user_choice = k
+                break
+
+        if not user_choice:
+            await message.channel.send("가위 / 바위 / 보 (또는 묵찌빠) 중 하나만 골라주세요!")
+            return
+
+        # AI 선택
+        ai_choice = random.choice(['가위', '바위', '보'])
+
+        # 결과 판단
+        def winner(p1, p2):
+            win = {'가위': '보', '바위': '가위', '보': '바위'}
+            if p1 == p2:
+                return 0
+            elif win[p1] == p2:
+                return 1
             else:
-                user_display = key
-            break
+                return 2
 
-    ai_choice = random.choice(['가위', '바위', '보'])
+        result = winner(user_choice, ai_choice)
 
-    result_msg = f"당신: {user_display} vs 봇: {ai_choice}\n"
+        if result == 0:
+            outcome = "비겼어요! 😐"
+        elif result == 1:
+            outcome = "이겼어요! 🎉"
+        else:
+            outcome = "졌어요... 😢"
 
-    result = determine_winner(user_choice, ai_choice)
-    if result == 0:
-        result_msg += "무승부입니다!"
-    elif result == 1:
-        result_msg += "당신이 이겼습니다! 🎉"
-    else:
-        result_msg += "당신은 Ai한테 졌어요... 😎"
+        await message.channel.send(
+            f"당신: {user_choice}\nAI: {ai_choice}\n\n**{outcome}**"
+        )
 
-    await ctx.send(result_msg)
+        pending_ai_game.pop(user_id)  # 게임 상태 초기화
+
+pending_ai_game = {}  # 유저별 상태 저장: {user_id: True}
 
 @bot.command()
 async def ai가위바위보(ctx):
