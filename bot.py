@@ -147,14 +147,15 @@ async def show_results():
         user = bot.get_user(user_id)
         msg += f"{user.display_name}: {choice}\n"
 
-    if len(winners) == 1:
-        winner_user = bot.get_user(winners[0])
-        msg += f"\n🏆 승자는 {winner_user.display_name}님입니다! 축하합니다! 🏆"
-    else:
-        msg += "\n무승부입니다! 승자가 없습니다."
-
-    await game_channel.send(msg)
-
+if max_win == 0:
+    msg += "\n😐 모두 비겼습니다! 승자가 없습니다."
+elif len(winners) == 1:
+    winner_user = bot.get_user(winners[0])
+    msg += f"\n🏆 승자는 {winner_user.display_name}님입니다! 축하합니다! 🏆"
+else:
+    winner_names = [bot.get_user(uid).display_name for uid in winners]
+    msg += f"\n🏆 공동 승자: {', '.join(winner_names)}님! 축하합니다! 🏆"
+    
 # 승패 판단 함수
 def determine_winner(p1_choice, p2_choice):
     wins = {'가위': '보', '바위': '가위', '보': '바위'}
